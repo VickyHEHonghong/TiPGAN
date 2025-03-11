@@ -3,15 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# gram matrix and loss
 class GramMatrix(nn.Module):
     def forward(self, input):
         b, c, h, w = input.size()
         F = input.view(b, c, h * w)
-        G = torch.bmm(F, F.transpose(1, 2))  #F.transpose(1, 2) =(b,  h * w ,c)
-        G.div_(
-            h * w
-        )  # torch.bmm(a,b),tensor a 的size为(b,h,w),tensor b的size为(b,w,m) .输出维度 （b,h,m）
+        G = torch.bmm(F, F.transpose(1, 2))
+        G.div_(h * w)
         return G
 
 
@@ -21,7 +18,6 @@ class GramMSELoss(nn.Module):
         return (out)
 
 
-# vgg definition that conveniently let's you grab the outputs from any layer
 class VGGModel(nn.Module):
     def __init__(self, pool='max'):
         super(VGGModel, self).__init__()

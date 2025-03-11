@@ -6,7 +6,6 @@ import torch.nn as nn
 
 
 def divide_batched_tensor(tensor, line1_position, line2_position):
-    # Verify if the lines' positions are valid
     _, _, tensor_height, tensor_width = tensor.shape
     if (line1_position <= 0 or line1_position >= tensor_width
             or line2_position <= 0 or line2_position >= tensor_height):

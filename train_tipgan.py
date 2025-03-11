@@ -21,9 +21,10 @@ from src.loss import GANLoss, HistogramLoss, StyleLoss
 from src.network import Discriminator, ResnetNetGenerator
 from src.utils import tensor2img
 
-data_root = '.'
-texture_name = 'banded_0023'
+data_root = 'experiments'
+texture_name = 'nature_0001'
 texture_root = os.path.join(data_root, texture_name)
+os.makedirs(texture_root, exist_ok=True)
 
 
 def config_logging(file_name: str,
@@ -58,11 +59,13 @@ ckpt_org = os.path.join(
     ckpt_root, 'seamlessgan_0.pth')  #----------------------------------------
 texture_res_root = os.path.join(texture_root, 'result')
 texture_res_compose_root = os.path.join(texture_root, 'result_compose')
+os.makedirs(texture_res_root, exist_ok=True)
+os.makedirs(texture_res_compose_root, exist_ok=True)
 
 log_step = 20
 vis_step = 50
 validation_step = 10
-img_path = 'nature_0001.jpg'
+img_path = 'media/nature_0001.jpg'
 train_dataset = HalfDataset(img_path, fineSize=256, split_type='train')
 data_loader = DataLoader(dataset=train_dataset,
                          batch_size=20,

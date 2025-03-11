@@ -33,23 +33,7 @@ class RelativeTV(nn.Module):
     def relative_tv_loss(self, tv_a: torch.Tensor,
                          tv_b: torch.Tensor) -> torch.Tensor:
         loss = torch.abs(1 - tv_a / (tv_b + self.eps))
-        # return torch.log(loss)
-        # return loss
-
-        # def relative_tv_loss(self,
-        #                     tv_a: torch.Tensor,
-        #                     tv_b: torch.Tensor) -> torch.Tensor:
-        #     criterion = nn.MSELoss()
-        #     loss = criterion(tv_a, tv_b) + self.eps
-        #     loss = loss.pow(0.5)
-        #     # criterion_smoothL1=nn.SmoothL1Loss()
-        #     # loss = criterion_smoothL1(tv_a, tv_b) + self.eps
-        #     criterion_L1 = nn.L1Loss()
-        #     loss = criterion_L1(tv_a, tv_b) + self.eps
-        #     loss = loss.pow(0.5)
-
         loss = torch.abs(1 - tv_a / (tv_b + self.eps))
-        # return torch.log(loss)
         return loss
 
     def reshape(self, data: torch.Tensor) -> torch.Tensor:

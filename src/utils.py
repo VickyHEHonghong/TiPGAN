@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-def tensor2img(input_image, imtype=np.uint8):
+def tensor2img(input_image, imtype=np.uint8) -> np.ndarray:
     """"Converts a Tensor array into a numpy image array.
 
     Parameters:

@@ -5,10 +5,10 @@ import torch.nn.functional as F
 
 from .vgg_models import GramMatrix, GramMSELoss, VGGModel
 
-EPS = 1e-6
-
 
 class HistogramLoss(nn.Module):
+    EPS = 1e-6
+
     def __init__(self,
                  h=64,
                  insz=256,
@@ -87,16 +87,16 @@ class HistogramLoss(nn.Module):
             II = torch.pow(I, 2)
             if self.intensity_scale:
                 Iy = torch.unsqueeze(torch.sqrt(II[:, 0] + II[:, 1] +
-                                                II[:, 2] + EPS),
+                                                II[:, 2] + self.EPS),
                                      dim=1)
             else:
                 Iy = 1
 
-            Iu0 = torch.unsqueeze(torch.log(I[:, 0] + EPS) -
-                                  torch.log(I[:, 1] + EPS),
+            Iu0 = torch.unsqueeze(torch.log(I[:, 0] + self.EPS) -
+                                  torch.log(I[:, 1] + self.EPS),
                                   dim=1)
-            Iv0 = torch.unsqueeze(torch.log(I[:, 0] + EPS) -
-                                  torch.log(I[:, 2] + EPS),
+            Iv0 = torch.unsqueeze(torch.log(I[:, 0] + self.EPS) -
+                                  torch.log(I[:, 2] + self.EPS),
                                   dim=1)
             diff_u0 = abs(
                 Iu0 -
@@ -132,11 +132,11 @@ class HistogramLoss(nn.Module):
             a = torch.t(Iy * diff_u0)
             hists[l, 0, :, :] = torch.mm(a, diff_v0)
 
-            Iu1 = torch.unsqueeze(torch.log(I[:, 1] + EPS) -
-                                  torch.log(I[:, 0] + EPS),
+            Iu1 = torch.unsqueeze(torch.log(I[:, 1] + self.EPS) -
+                                  torch.log(I[:, 0] + self.EPS),
                                   dim=1)
-            Iv1 = torch.unsqueeze(torch.log(I[:, 1] + EPS) -
-                                  torch.log(I[:, 2] + EPS),
+            Iv1 = torch.unsqueeze(torch.log(I[:, 1] + self.EPS) -
+                                  torch.log(I[:, 2] + self.EPS),
                                   dim=1)
             diff_u1 = abs(
                 Iu1 -
@@ -170,11 +170,11 @@ class HistogramLoss(nn.Module):
         a = torch.t(Iy * diff_u1)
         hists[l, 1, :, :] = torch.mm(a, diff_v1)
 
-        Iu2 = torch.unsqueeze(torch.log(I[:, 2] + EPS) -
-                              torch.log(I[:, 0] + EPS),
+        Iu2 = torch.unsqueeze(torch.log(I[:, 2] + self.EPS) -
+                              torch.log(I[:, 0] + self.EPS),
                               dim=1)
-        Iv2 = torch.unsqueeze(torch.log(I[:, 2] + EPS) -
-                              torch.log(I[:, 1] + EPS),
+        Iv2 = torch.unsqueeze(torch.log(I[:, 2] + self.EPS) -
+                              torch.log(I[:, 1] + self.EPS),
                               dim=1)
         diff_u2 = abs(
             Iu2 - torch.unsqueeze(torch.tensor(np.linspace(-3, 3, num=self.h)),
@@ -206,11 +206,12 @@ class HistogramLoss(nn.Module):
 
         # normalization
         hists_normalized = hists / ((
-            (hists.sum(dim=1)).sum(dim=1)).sum(dim=1).view(-1, 1, 1, 1) + EPS)
+            (hists.sum(dim=1)).sum(dim=1)).sum(dim=1).view(-1, 1, 1, 1) +
+                                    self.EPS)
 
         return hists_normalized
 
-    def forward(self, pred, gt):
+    def forward(self, pred, gt) -> torch.Tensor:
         pred_hist = self.forward_block(pred)
         gt_hist = self.forward_block(gt)
         histogram_loss = (1 / np.sqrt(2.0) * (torch.sqrt(
@@ -261,7 +262,7 @@ class GANLoss(nn.Module):
             target_tensor = self.fake_label_var
         return target_tensor
 
-    def __call__(self, input, target_is_real):
+    def __call__(self, input, target_is_real) -> torch.Tensor:
         target_tensor = self.get_target_tensor(input, target_is_real)
         target_tensor = target_tensor.cuda()
         # print(target_tensor)
@@ -278,7 +279,7 @@ class StyleLoss(nn.Module):
         if torch.cuda.is_available():
             self.vgg.cuda()
 
-    def __call__(self, fake_B, real_B):
+    def __call__(self, fake_B, real_B) -> torch.Tensor:
         style_layers = ['r11', 'r21', 'r31', 'r41', 'r51']
         # self.content_layers = ['r42']
         loss_layers = style_layers

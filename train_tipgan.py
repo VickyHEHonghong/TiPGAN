@@ -1,253 +1,265 @@
-import logging
+import argparse
+import datetime
 import os
-import os.path
-import sys
-import time
-from datetime import datetime
+import os.path as osp
 
+import cv2
 import numpy as np
 import torch
 import torch.cuda
 import torch.nn as nn
-import tqdm
 from PIL import Image
-from torch.nn import functional as F
+from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
+from tqdm import tqdm
 
 from src.dataset import HalfDataset
 from src.loss import GANLoss, HistogramLoss, StyleLoss
 from src.network import Discriminator, ResnetNetGenerator
 from src.utils import tensor2img
 
-data_root = 'experiments'
-texture_name = 'nature_0001'
-texture_root = os.path.join(data_root, texture_name)
-os.makedirs(texture_root, exist_ok=True)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='TiPGAN train')
+
+    # Adding arguments
+    parser.add_argument('--img_path',
+                        type=str,
+                        default='media/nature_0001.jpg',
+                        help='Path to the input image')
+    parser.add_argument('--save_base',
+                        type=str,
+                        default='experiments',
+                        help='Base directory to save the results')
+    parser.add_argument('--resume_from',
+                        type=str,
+                        default=None,
+                        help='Path to the checkpoint to resume from')
+    parser.add_argument('--batch_size', type=int, default=1, help='Batch size')
+    parser.add_argument('--log_step',
+                        type=int,
+                        default=20,
+                        help='Step interval for logging')
+    parser.add_argument('--vis_step',
+                        type=int,
+                        default=100,
+                        help='Step interval for visualization')
+    parser.add_argument('--save_step',
+                        type=int,
+                        default=500,
+                        help='Step interval for saving the model')
+    parser.add_argument('--lambda_hist',
+                        type=float,
+                        default=1e-4,
+                        help='Weight for histogram loss')
+    parser.add_argument('--lambda_style',
+                        type=float,
+                        default=10.0,
+                        help='Weight for style loss')
+    parser.add_argument('--learning_rate',
+                        type=float,
+                        default=0.0002,
+                        help='Learning rate')
+    parser.add_argument('--total_iter',
+                        type=int,
+                        default=50000,
+                        help='Total number of training iterations')
+
+    # Parse the arguments
+    return parser.parse_args()
 
 
-def config_logging(file_name: str,
-                   console_level: int = logging.INFO,
-                   file_level: int = logging.DEBUG):
-    today = str(datetime.now()).replace(' ', '-').replace(':',
-                                                          '_').split('.')[0]
-    file_name = os.path.join(file_name, f'{today}.txt')
-    file_handler = logging.FileHandler(file_name, mode='a', encoding='utf8')
-    file_handler.setFormatter(
-        logging.Formatter('[%(asctime)s %(levelname)s] %(message)s',
-                          datefmt='%Y-%m-%d %H:%M:%S'))
-    file_handler.setLevel(file_level)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(
-        logging.Formatter('[%(asctime)s %(levelname)s] %(message)s',
-                          datefmt='%Y-%m-%d %H:%M:%S'))
-    console_handler.setLevel(console_level)
-    logging.basicConfig(level=min(console_level, file_level),
-                        handlers=[file_handler, console_handler])
+def train(args):
+    img_path = args.img_path
+    save_base = args.save_base
+    resume_from = args.resume_from
+    log_step = args.log_step
+    vis_step = args.vis_step
+    save_step = args.save_step
+    lambda_hist = args.lambda_hist
+    lambda_style = args.lambda_style
+    learning_rate = args.learning_rate
+    total_iter = args.total_iter
+
+    texture_name = osp.splitext(osp.basename(img_path))[0]
+    exp_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    save_dir = osp.join(save_base, texture_name, exp_name)
+    tensorboard_dir = osp.join(save_dir, 'tensorboard')
+    save_img_dir = osp.join(save_dir, 'imgs')
+    os.makedirs(tensorboard_dir, exist_ok=True)
+    os.makedirs(save_img_dir, exist_ok=True)
+
+    # create dataset
+    train_dataset = HalfDataset(img_path, fineSize=256, split_type='train')
+    data_loader = DataLoader(dataset=train_dataset,
+                             batch_size=args.batch_size,
+                             shuffle=False,
+                             num_workers=4,
+                             persistent_workers=True,
+                             pin_memory=True,
+                             drop_last=False)
+
+    # init networks
+    generator = ResnetNetGenerator(input_nc=3,
+                                   output_nc=3,
+                                   ngf=64,
+                                   norm_layer=nn.InstanceNorm2d,
+                                   use_dropout=False,
+                                   n_blocks=6,
+                                   padding_type='reflect')
+    discriminator = Discriminator(input_nc=6,
+                                  ndf=64,
+                                  norm_layer=nn.InstanceNorm2d)
+
+    if torch.cuda.is_available():
+        generator = generator.cuda()
+        discriminator = discriminator.cuda()
+
+    # loss functions
+    criterionGAN = GANLoss(use_lsgan=False,
+                           tensor=torch.FloatTensor,
+                           target_real_label=1.0,
+                           target_fake_label=0.0)
+    criterionL1 = torch.nn.L1Loss()
+    criterionStyle = StyleLoss()
+    criterionHistogram = HistogramLoss()
+
+    # Optimizers
+    optimizer_G = torch.optim.Adam(generator.parameters(),
+                                   lr=learning_rate,
+                                   betas=(0.5, 0.999))
+    optimizer_D = torch.optim.Adam(discriminator.parameters(),
+                                   lr=learning_rate,
+                                   betas=(0.5, 0.999))
+    scheduler_G = MultiStepLR(optimizer_G,
+                              milestones=[30000, 40000],
+                              gamma=0.2)
+    scheduler_D = MultiStepLR(optimizer_D,
+                              milestones=[30000, 40000],
+                              gamma=0.2)
+
+    # resume-from
+    if resume_from is not None:
+        assert osp.isfile(resume_from) and resume_from.endswith('.pth')
+        state_dict = torch.load(resume_from)
+        generator.load_state_dict(state_dict['generator'])
+        discriminator.load_state_dict(state_dict['discriminator'])
+        optimizer_G.load_state_dict(state_dict['optim_G'])
+        optimizer_D.load_state_dict(state_dict['optim_D'])
+        current_iter = state_dict['current_iter']
+    else:
+        current_iter = 0
+
+    writer = SummaryWriter(tensorboard_dir)
+
+    progress_bar = tqdm(
+        range(0, total_iter),
+        initial=current_iter,
+        desc='Steps',
+    )
+
+    epoch_nums = (total_iter - current_iter) // len(data_loader)
+    for _ in range(epoch_nums):
+        for _, batch_data in enumerate(data_loader):
+            real_A_128 = batch_data['A']
+            real_B = batch_data['B']
+            if torch.cuda.is_available():
+                real_A_128 = real_A_128.cuda()
+                real_B = real_B.cuda()
+
+            fake_B_512 = generator(real_A_128).cuda()
+            fake_B = transforms.CenterCrop(256)(fake_B_512).cuda()
+            real_A = transforms.RandomResizedCrop(256)(real_A_128)
+
+            # optimize discriminator
+            fake_AB = torch.cat((real_A, fake_B), 1)
+            disc_fake = discriminator(fake_AB.detach())
+            loss_D_fake = criterionGAN(disc_fake, target_is_real=False)
+
+            real_AB = torch.cat((real_A, real_B), 1)
+            disc_real = discriminator(real_AB)
+            loss_D_real = criterionGAN(disc_real, target_is_real=True)
+
+            loss_D = (loss_D_fake + loss_D_real) * 0.5
+            optimizer_D.zero_grad()
+            loss_D.backward()
+            optimizer_D.step()
+
+            # optimize generator
+            fake_B_B256 = torch.cat((real_B, fake_B), 1)
+            disc_fake = discriminator(fake_B_B256)
+
+            loss_GAN = criterionGAN(disc_fake, True)
+            loss_L1 = criterionL1(fake_B, real_B)
+            loss_style = lambda_style * criterionStyle(fake_B, real_B)
+            loss_hist = lambda_hist * criterionHistogram(fake_B, real_B)
+            loss_G = loss_L1 + loss_style + loss_GAN + loss_hist
+
+            optimizer_G.zero_grad()
+            loss_G.backward()
+            optimizer_G.step()
+
+            scheduler_G.step()
+            scheduler_D.step()
+
+            logs = dict(step=current_iter,
+                        loss_D=loss_D,
+                        loss_G=loss_G,
+                        loss_L1=loss_L1,
+                        loss_style=loss_style,
+                        loss_GAN=loss_GAN,
+                        loss_hist=loss_hist)
+
+            current_iter = current_iter + 1
+            if current_iter % log_step == 0:
+                for key, value in logs.items():
+                    if key == 'step':
+                        continue
+                    writer.add_scalar(f'TiPGAN_train/{key}', value.item(),
+                                      logs['step'])
+
+            if current_iter % vis_step == 0:
+                real_A_result = tensor2img(real_A_128)
+                fake_B_result = tensor2img(fake_B)
+                real_B_result = tensor2img(real_B)
+                real_A_result = cv2.resize(real_A_result,
+                                           real_B_result.shape[:2])
+                vis_result = np.concatenate(
+                    (real_A_result, real_B_result, fake_B_result), axis=1)
+                writer.add_image('TiPGAN_train/vis',
+                                 vis_result.transpose(2, 0, 1), logs['step'])
+                vis_result = Image.fromarray(vis_result)
+                vis_result.save(osp.join(save_img_dir, f'{current_iter}.jpg'))
+
+            if current_iter % save_step == 0:
+                model_dict = {
+                    'generator': generator.state_dict(),
+                    'discriminator': discriminator.state_dict(),
+                    'optim_G': optimizer_G.state_dict(),
+                    'optim_D': optimizer_D.state_dict(),
+                    'current_iter': current_iter
+                }
+                torch.save(
+                    model_dict,
+                    osp.join(save_dir,
+                             'checkpoint-iter_{}.pth'.format(current_iter)))
+
+            # format logs for printing
+            for key, value in logs.items():
+                if torch.is_tensor(value):
+                    logs[key] = f'{value.item():.2e}'
+
+            # update progress bar
+            progress_bar.update(1)
+            progress_bar.set_postfix(**logs)
+
+    progress_bar.close()
+    writer.close()
+    print('Training finished!')
 
 
-log_path = os.path.join(texture_root, 'tipgan')
-os.makedirs(log_path, exist_ok=True)
-config_logging(log_path)
-logger = logging.getLogger('SeamlessGAN_new')
-
-json_root = os.path.join(texture_root, 'vicky_split_labels')
-img_root = os.path.join(texture_root, 'images')
-ckpt_root = os.path.join(texture_root, 'ckpt')
-ckpt_org = os.path.join(
-    ckpt_root, 'seamlessgan_0.pth')  #----------------------------------------
-texture_res_root = os.path.join(texture_root, 'result')
-texture_res_compose_root = os.path.join(texture_root, 'result_compose')
-os.makedirs(texture_res_root, exist_ok=True)
-os.makedirs(texture_res_compose_root, exist_ok=True)
-
-log_step = 20
-vis_step = 50
-validation_step = 10
-img_path = 'media/nature_0001.jpg'
-train_dataset = HalfDataset(img_path, fineSize=256, split_type='train')
-data_loader = DataLoader(dataset=train_dataset,
-                         batch_size=20,
-                         shuffle=True,
-                         num_workers=4,
-                         pin_memory=True,
-                         drop_last=False)
-val_dataset = HalfDataset(img_path, fineSize=256, split_type='valid')  ## val
-val_dataloader = DataLoader(dataset=val_dataset,
-                            batch_size=20,
-                            shuffle=True,
-                            num_workers=4,
-                            pin_memory=True,
-                            drop_last=False)
-
-lambda_A = 1.0
-lambda_B = 10.0
-#3.创建网络模型Creat generator and discriminator
-# Initialize generator and discriminator
-generator = ResnetNetGenerator(input_nc=3,
-                               output_nc=3,
-                               ngf=64,
-                               norm_layer=nn.InstanceNorm2d,
-                               use_dropout=False,
-                               n_blocks=6,
-                               padding_type='reflect')
-discriminator = Discriminator(input_nc=6, ndf=64, norm_layer=nn.InstanceNorm2d)
-
-if torch.cuda.is_available():
-    generator = generator.cuda()
-    discriminator = discriminator.cuda()
-
-#4.  define loss functions
-criterionGAN = GANLoss(use_lsgan=False,
-                       tensor=torch.FloatTensor,
-                       target_real_label=1.0,
-                       target_fake_label=0.0)
-criterionL1 = torch.nn.L1Loss()
-criterionStyle = StyleLoss()
-criterionHistogram = HistogramLoss()
-
-#5.优化器
-# Optimizers
-optimizer_G = torch.optim.Adam(generator.parameters(),
-                               lr=0.0002,
-                               betas=(0.5, 0.999))
-optimizer_D = torch.optim.Adam(discriminator.parameters(),
-                               lr=0.0002,
-                               betas=(0.5, 0.999))
-
-# resume-from
-if ckpt_org is None:
-    state_dict = torch.load(ckpt_org)
-    generator.load_state_dict(state_dict['generator'])
-    discriminator.load_state_dict(state_dict['discriminator'])
-    optimizer_G.load_state_dict(state_dict['optim_G'])
-    optimizer_D.load_state_dict(state_dict['optim_D'])
-    begin_epoch = state_dict['epoch']
-    current_train_step = begin_epoch * len(data_loader)
-else:
-    ##记录训练次数
-    # begin_epoch = 2500
-    # current_train_step = 700000
-    begin_epoch = 0
-    current_train_step = 0
-
-#6.设置训练网络的一些参数
-##添加tensorboard
-writer = SummaryWriter(f'{texture_root}/logs_seamless_train_{texture_name}')
-start_time = time.time()
-
-##将tensor数据转换为img numpy array，方便可视化
-
-# 训练的轮数
-epoch = 5000
-for i in range(begin_epoch, epoch):
-    begin_time = time.perf_counter()
-    for idx, batch_data in enumerate(data_loader):
-        real_A_128 = batch_data['A']  ##real_A.size()=128*128
-        real_B = batch_data['B']  ## real_B.size() = 256*256
-        if torch.cuda.is_available():
-            real_A_128 = real_A_128.cuda()
-            real_B = real_B.cuda()
-        data_time = time.perf_counter()
-
-        # synthesizing fake images
-        fake_B_512 = generator(real_A_128).cuda()
-        fake_B = transforms.CenterCrop(256)(fake_B_512).cuda()
-        real_A = transforms.RandomResizedCrop(256)(real_A_128)
-        # training on discriminator
-        fake_AB = torch.cat((real_A, fake_B), 1)
-        disc_fake = discriminator(
-            fake_AB.detach())  ##disc_fake.size() = 1*1*64*64
-        loss_D_fake = criterionGAN(disc_fake, target_is_real=False)
-
-        real_AB = torch.cat((real_A, real_B), 1)  ##real_B.size() = 1*6*256*256
-        disc_real = discriminator(real_AB)  ###disc_fake.size() = 1*1*64*64
-        loss_D_real = criterionGAN(disc_real, target_is_real=True)
-
-        loss_D = (loss_D_fake + loss_D_real) * 0.5
-        optimizer_D.zero_grad()
-        loss_D.backward()
-        optimizer_D.step()
-
-        # training on generator
-        fake_B_B256 = torch.cat((real_B, fake_B), 1)
-        disc_fake = discriminator(fake_B_B256)
-
-        loss_GAN = criterionGAN(disc_fake, True)
-        loss_L1 = criterionL1(fake_B, real_B)
-        loss_style = criterionStyle(fake_B, real_B)
-
-        hist_loss = criterionHistogram(fake_B, real_B)
-
-        loss_G = lambda_A * loss_L1 + lambda_B * loss_style + loss_GAN + hist_loss
-
-        optimizer_G.zero_grad()
-        loss_G.backward()
-        optimizer_G.step()
-
-        current_train_step = current_train_step + 1
-        if current_train_step % 10 == 0:
-            end_time = time.time()
-            print('time', end_time - start_time)
-            # print({'loss_G', loss_G.item(),
-            #        'Loss_GAN', loss_GAN.item(),
-            #        'loss_L1', loss_L1.item(),
-            #        'loss_style', loss_style.item()})
-
-            print(
-                '训练次数：{},loss_G:{},loss_D:{},Loss_GAN:{},loss_hist:{},loss_L1:{},loss_style:{}'
-                .format(current_train_step, loss_G.item(), loss_D.item(),
-                        loss_GAN.item(), hist_loss.item(), loss_L1.item(),
-                        loss_style.item()))
-            writer.add_scalar('seamless_train_loss/loss_G', loss_G.item(),
-                              current_train_step)
-            writer.add_scalar('seamless_train_loss/loss_D', loss_D.item(),
-                              current_train_step)
-            writer.add_scalar('seamless_train_loss/loss_GAN', loss_GAN.item(),
-                              current_train_step)
-            writer.add_scalar('seamless_train_loss/loss_hist',
-                              hist_loss.item(), current_train_step)
-            writer.add_scalar('seamless_train_loss/loss_L1', loss_L1.item(),
-                              current_train_step)
-            writer.add_scalar('seamless_train_loss/loss_style',
-                              loss_style.item(), current_train_step)
-
-        if current_train_step % 20 == 0:
-            real_A_numpy = tensor2img(real_A_128)
-            fake_B_numpy = tensor2img(fake_B)
-            real_B_numpy = tensor2img(real_B)
-            disc_fake = F.interpolate(disc_fake,
-                                      scale_factor=(4, 4),
-                                      mode='bilinear',
-                                      align_corners=True)
-            disc_fake_numpy = tensor2img(disc_fake)
-
-            real_A_result = Image.fromarray(real_A_numpy)
-            fake_B_result = Image.fromarray(fake_B_numpy)
-            real_B_result = Image.fromarray(real_B_numpy)
-            disc_fake_result = Image.fromarray(disc_fake_numpy)
-
-            real_A_result.save(
-                os.path.join(texture_res_root,
-                             'real_A' + f'{current_train_step}.jpg'))
-            fake_B_result.save(
-                os.path.join(texture_res_root,
-                             'fake_B' + f'{current_train_step}.jpg'))
-            real_B_result.save(
-                os.path.join(texture_res_root,
-                             'real_B' + f'{current_train_step}.jpg'))
-            disc_fake_result.save(
-                os.path.join(texture_res_root,
-                             'disc_fake' + f'{current_train_step}.jpg'))
-
-    # if i % 500 ==0:
-    #     ##保存模型
-    #     model_dict = {
-    #         'generator': generator.state_dict(),
-    #         'discriminator': discriminator.state_dict(),
-    #         'optim_G': optimizer_G.state_dict(),
-    #         'optim_D': optimizer_D.state_dict(),
-    #         'epoch': i
-    #     }
-    #     torch.save(model_dict, ckpt_root +  '/'+  'seamlessgan_{}.pth'.format(i))
+if __name__ == '__main__':
+    args = parse_args()
+    train(args)

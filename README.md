@@ -1,5 +1,5 @@
 # TiPGAN: High-Quality Tileable Textures Synthesis with Intrinsic Priors for Cloth Digitization Applications
-
+[![TiPGAN Demo](https://github.com/user-attachments/assets/66a173c9-a8ad-4cf6-8762-b744e186eded)](https://youtu.be/x)
 
 # Environment
 
@@ -20,4 +20,9 @@ pip install -r requirements.txt
 # Train
 ```bash
 python train_tipgan.py --img_path media/nature_0001.jpg
+```
+
+# Inference
+```bash
+python inference.py
 ```

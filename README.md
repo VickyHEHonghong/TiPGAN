@@ -1,6 +1,7 @@
 # TiPGAN: High-Quality Tileable Textures Synthesis with Intrinsic Priors for Cloth Digitization Applications
-This is the official implementation of TiPGAN (CAD 2025). If you find our repository is helpful, please cite this [bib](#Citation).
+This is the official implementation of **TiPGAN (CAD 2025)**. You can watch our demo video by clicking below:
 [![TiPGAN Demo](https://github.com/user-attachments/assets/66a173c9-a8ad-4cf6-8762-b744e186eded)](https://youtu.be/Tyk7mGeElzg)
+If you find our repository helpful, please cite using this [bib](#Citation).
 
 # Environment
 

@@ -20,6 +20,7 @@ pip install -r requirements.txt
 ```
 
 # Train
+
 ```bash
 python train_tipgan.py --img_path media/nature_0001.jpg
 ```
@@ -28,6 +29,10 @@ python train_tipgan.py --img_path media/nature_0001.jpg
 ```bash
 python inference.py
 ```
+We have uploaded part of the checkpoints for the synthesized seamless textures on huggingface.
+| ![](media/banded_0109.jpg)<br>banded_0109 | ![](media/banded_0140.jpg)<br>banded_0140 | ![](media/banded_0141.jpg)<br>banded_0141 |
+|----------------------|----------------------|----------------------|
+
 
 # Citation
 

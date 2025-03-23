@@ -36,19 +36,23 @@ python inference.py --img_path media/nature_0005.jpg --ckpt_path ckpt/nature_000
 ```
 We have uploaded some of the checkpoints for the synthesized seamless textures to [Hugging Face](https://huggingface.co/taited/TiPGAN/). The table below shows the generated seamless textures.
 
-|              | <center>banded_0109</center> | <center>banded_0141</center> | <center>banded_0145</center> | <center>chequered_0199</center> | <center>dotted_0190</center> |
-|:------------:|:----------------------------:|:----------------------------:|:----------------------------:|:------------------------------:|:----------------------------:|
-| **Input**    | <img src="media/banded_0109.jpg" width="200" height="200"/> | <img src="media/banded_0141.jpg" width="200" height="200"/> | <img src="media/banded_0145.jpg" width="200" height="200"/> | <img src="media/chequered_0199.jpg" width="200" height="200"/> | <img src="media/dotted_0190.jpg" width="200" height="200"/> |
-| **Seamless Texture** | <img src="media/seamless-banded_0109.jpg" width="200" height="200"/> | <img src="media/seamless-banded_0141.jpg" width="200" height="200"/> | <img src="media/seamless-banded_0145.jpg" width="200" height="200"/> | <img src="media/seamless-chequered_0199.jpg" width="200" height="200"/> | <img src="media/seamless-dotted_0190.jpg" width="200" height="200"/> |
-| **Tilled Texture**   | <img src="media/seamless_tilled-banded_0109.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-banded_0141.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-banded_0145.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-chequered_0199.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-dotted_0190.jpg" width="200" height="200"/> |
+|              | <center>flora_0003</center> | <center>honeycombed_0123</center> | <center>nature_0005</center> |
+|:------------:|:---------------------------:|:------------------------------:|:----------------------------:|
+| **Input**    | <img src="media/flora_0003.jpg" width="200" height="200"/> | <img src="media/honeycombed_0123.jpg" width="200" height="200"/> | <img src="media/nature_0005.jpg" width="200" height="200"/> |
+| **Seamless Texture** | <img src="media/seamless-flora_0003.jpg" width="200" height="200"/> | <img src="media/seamless-honeycombed_0123.jpg" width="200" height="200"/> | <img src="media/seamless-nature_0005.jpg" width="200" height="200"/> |
+| **Tilled Texture**   | <img src="media/seamless_tilled-flora_0003.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-honeycombed_0123.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-nature_0005.jpg" width="200" height="200"/> |
 
+|              | <center>chequered_0199</center> | <center>dotted_0190</center> | <center>zigzagged_0036</center> |
+|:------------:|:------------------------------:|:----------------------------:|:------------------------------:|
+| **Input**    | <img src="media/chequered_0199.jpg" width="200" height="200"/> | <img src="media/dotted_0190.jpg" width="200" height="200"/> | <img src="media/zigzagged_0036.jpg" width="200" height="200"/> |
+| **Seamless Texture** | <img src="media/seamless-chequered_0199.jpg" width="200" height="200"/> | <img src="media/seamless-dotted_0190.jpg" width="200" height="200"/> | <img src="media/seamless-zigzagged_0036.jpg" width="200" height="200"/> |
+| **Tilled Texture**   | <img src="media/seamless_tilled-chequered_0199.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-dotted_0190.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-zigzagged_0036.jpg" width="200" height="200"/> |
 
-|              | <center>flora_0003</center> | <center>flora_0005</center> | <center>honeycombed_0123</center> | <center>nature_0005</center> | <center>zigzagged_0036</center> |
-|:------------:|:---------------------------:|:---------------------------:|:------------------------------:|:----------------------------:|:------------------------------:|
-| **Input**    | <img src="media/flora_0003.jpg" width="200" height="200"/> | <img src="media/flora_0005.jpg" width="200" height="200"/> | <img src="media/honeycombed_0123.jpg" width="200" height="200"/> | <img src="media/nature_0005.jpg" width="200" height="200"/> | <img src="media/zigzagged_0036.jpg" width="200" height="200"/> |
-| **Seamless Texture** | <img src="media/seamless-flora_0003.jpg" width="200" height="200"/> | <img src="media/seamless-flora_0005.jpg" width="200" height="200"/> | <img src="media/seamless-honeycombed_0123.jpg" width="200" height="200"/> | <img src="media/seamless-nature_0005.jpg" width="200" height="200"/> | <img src="media/seamless-zigzagged_0036.jpg" width="200" height="200"/> |
-| **Tilled Texture**   | <img src="media/seamless_tilled-flora_0003.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-flora_0005.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-honeycombed_0123.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-nature_0005.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-zigzagged_0036.jpg" width="200" height="200"/> |
-
+|              | <center>banded_0109</center> | <center>banded_0141</center> | <center>banded_0145</center> |
+|:------------:|:----------------------------:|:----------------------------:|:----------------------------:|
+| **Input**    | <img src="media/banded_0109.jpg" width="200" height="200"/> | <img src="media/banded_0141.jpg" width="200" height="200"/> | <img src="media/banded_0145.jpg" width="200" height="200"/> |
+| **Seamless Texture** | <img src="media/seamless-banded_0109.jpg" width="200" height="200"/> | <img src="media/seamless-banded_0141.jpg" width="200" height="200"/> | <img src="media/seamless-banded_0145.jpg" width="200" height="200"/> |
+| **Tilled Texture**   | <img src="media/seamless_tilled-banded_0109.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-banded_0141.jpg" width="200" height="200"/> | <img src="media/seamless_tilled-banded_0145.jpg" width="200" height="200"/> |
 
 # Citation
 

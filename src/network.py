@@ -3,6 +3,7 @@ import random
 
 import torch
 import torch.nn as nn
+from torchvision.transforms import CenterCrop
 
 
 def divide_batched_tensor(tensor, line1_position, line2_position):
@@ -272,3 +273,166 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         return self.model(input)
+
+
+class PatchSwapModule(nn.Module):
+    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias, n_blocks=6):
+        super().__init__()
+
+        blocks = []
+        for _ in range(n_blocks):
+            blocks += [
+                ResidualBlock(dim, padding_type, norm_layer, use_dropout,
+                              use_bias)
+            ]
+        self.blocks = nn.Sequential(*blocks)
+
+    def forward(self, inputs: torch.Tensor):
+        _, _, height, width = inputs.size()
+        rw = int(width / 4)
+        rh = int(height / 4)
+        if self.training:
+            rw_position = random.randint(rw + 2, width - (rw + 2))
+            rh_position = random.randint(rh + 2, height - (rh + 2))
+        else:
+            rw_position = rw + 2
+            rh_position = rh + 2
+        d0 = divide_batched_tensor(inputs, rw_position, rh_position)
+        features = self.blocks(d0)
+        return features
+
+
+class PatchTilingModule(nn.Module):
+    def __init__(self, ngf, norm_layer=nn.InstanceNorm2d, use_bias=True):
+        super().__init__()
+        blocks = [nn.Conv2d(ngf * 4,
+                      ngf * 8,
+                      kernel_size=3,
+                      stride=1,
+                      padding=1,
+                      bias=use_bias),
+                norm_layer(ngf * 8),
+                nn.ReLU(True)
+                ]
+        self.blocks = nn.Sequential(*blocks)
+
+    def forward(self, inputs: torch.Tensor):
+        features = inputs.repeat(1, 1, 2, 2)
+        features = self.blocks(features)
+        return features
+
+
+class TiPGANGenerator(nn.Module):
+    def __init__(self,
+                 input_nc,
+                 output_nc,
+                 ngf=64,
+                 norm_layer=nn.InstanceNorm2d,
+                 use_dropout=False,
+                 padding_type='reflect'):
+        super(TiPGANGenerator, self).__init__()
+        self.input_nc = input_nc
+        self.output_nc = output_nc
+        self.ngf = ngf
+
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        if padding_type == 'reflect':
+            encoder = [nn.ReflectionPad2d(padding=3)]
+        elif padding_type == 'replicate':
+            encoder = [nn.ReplicationPad2d(3)]
+        else:
+            raise NotImplementedError('padding [%s] is not implemented' %
+                                      padding_type)
+
+        encoder = []
+
+        encoder += [
+            nn.ReplicationPad2d(padding=3),
+            nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
+            norm_layer(ngf),
+            nn.ReLU(True)
+        ]
+
+        encoder += [
+            nn.Conv2d(ngf,
+                      ngf * 2,
+                      kernel_size=3,
+                      stride=2,
+                      padding=1,
+                      bias=use_bias),
+            norm_layer(ngf * 2),
+            nn.ReLU(True)
+        ]
+
+        encoder += [
+            nn.Conv2d(ngf * 2,
+                      ngf * 4,
+                      kernel_size=3,
+                      stride=2,
+                      padding=1,
+                      bias=use_bias),
+            norm_layer(ngf * 4),
+            nn.ReLU(True)
+        ]
+
+        self.psm = PatchSwapModule(4*ngf, padding_type, norm_layer, use_dropout, use_bias, n_blocks=6)
+        
+        self.ptm = PatchTilingModule(ngf, norm_layer, use_bias)
+        
+        decoder = []
+        decoder += [
+            nn.ConvTranspose2d(ngf * 8,
+                               int(ngf * 4),
+                               kernel_size=3,
+                               stride=2,
+                               padding=1,
+                               output_padding=1,
+                               bias=use_bias),
+            norm_layer(int(ngf * 2)),
+            nn.ReLU(True)
+        ]
+
+        decoder += [
+            nn.ConvTranspose2d(ngf * 4,
+                               int(ngf * 2),
+                               kernel_size=3,
+                               stride=2,
+                               padding=1,
+                               output_padding=1,
+                               bias=use_bias),
+            norm_layer(int(ngf)),
+            nn.ReLU(True)
+        ]
+
+        decoder += [
+            nn.ConvTranspose2d(ngf * 2,
+                               int(ngf),
+                               kernel_size=3,
+                               stride=2,
+                               padding=1,
+                               output_padding=1,
+                               bias=use_bias),
+            norm_layer(int(ngf)),
+            nn.ReLU(True)
+        ]
+
+        decoder += [nn.ReflectionPad2d(3)]
+        decoder += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        decoder += [nn.Tanh()]
+
+        self.encoder = nn.Sequential(*encoder)
+        self.decoder = nn.Sequential(*decoder)
+        
+        self.center_crop = CenterCrop(256)
+        
+    def forward(self, inputs):
+        feature = self.encoder(inputs)
+        feature_psm = self.psm(feature)
+        feature_ptm = self.ptm(feature_psm)
+        seamless_texture = self.decoder(feature_ptm)
+        seamless_texture = self.center_crop(seamless_texture)
+        return seamless_texture

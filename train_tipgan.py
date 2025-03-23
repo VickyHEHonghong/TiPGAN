@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from src.dataset import HalfDataset
 from src.loss import GANLoss, HistogramLoss, StyleLoss
-from src.network import Discriminator, ResnetNetGenerator
+from src.network import Discriminator, TiPGANGenerator
 from src.utils import tensor2img
 
 
@@ -33,6 +33,10 @@ def parse_args():
                         type=str,
                         default='experiments',
                         help='Base directory to save the results')
+    parser.add_argument('--save_meta',
+                        type=str,
+                        default=None,
+                        help='Meta name of log dir')
     parser.add_argument('--resume_from',
                         type=str,
                         default=None,
@@ -44,11 +48,11 @@ def parse_args():
                         help='Step interval for logging')
     parser.add_argument('--vis_step',
                         type=int,
-                        default=100,
+                        default=1000,
                         help='Step interval for visualization')
     parser.add_argument('--save_step',
                         type=int,
-                        default=500,
+                        default=1000,
                         help='Step interval for saving the model')
     parser.add_argument('--lambda_hist',
                         type=float,
@@ -85,6 +89,8 @@ def train(args):
 
     texture_name = osp.splitext(osp.basename(img_path))[0]
     exp_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    if args.save_meta is not None:
+        exp_name = f'{args.save_meta}-{exp_name}'
     save_dir = osp.join(save_base, texture_name, exp_name)
     tensorboard_dir = osp.join(save_dir, 'tensorboard')
     save_img_dir = osp.join(save_dir, 'imgs')
@@ -102,13 +108,12 @@ def train(args):
                              drop_last=False)
 
     # init networks
-    generator = ResnetNetGenerator(input_nc=3,
-                                   output_nc=3,
-                                   ngf=64,
-                                   norm_layer=nn.InstanceNorm2d,
-                                   use_dropout=False,
-                                   n_blocks=6,
-                                   padding_type='reflect')
+    generator = TiPGANGenerator(input_nc=3,
+                                output_nc=3,
+                                ngf=64,
+                                norm_layer=nn.InstanceNorm2d,
+                                use_dropout=False,
+                                padding_type='reflect')
     discriminator = Discriminator(input_nc=6,
                                   ndf=64,
                                   norm_layer=nn.InstanceNorm2d)
@@ -169,8 +174,7 @@ def train(args):
                 real_A_128 = real_A_128.cuda()
                 real_B = real_B.cuda()
 
-            fake_B_512 = generator(real_A_128).cuda()
-            fake_B = transforms.CenterCrop(256)(fake_B_512).cuda()
+            fake_B = generator(real_A_128)
             real_A = transforms.RandomResizedCrop(256)(real_A_128)
 
             # optimize discriminator

@@ -273,7 +273,7 @@ class StyleLoss(nn.Module):
     def __init__(self):
         super(StyleLoss, self).__init__()
         self.vgg = VGGModel()
-        self.vgg.load_state_dict(torch.load('vgg_conv.pth'))
+        self.vgg.load_state_dict(torch.load('ckpt/vgg_conv.pth'))
         for param in self.vgg.parameters():
             param.requires_grad = False
         if torch.cuda.is_available():

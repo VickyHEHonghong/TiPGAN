@@ -1,5 +1,5 @@
 # TiPGAN: High-Quality Tileable Textures Synthesis with Intrinsic Priors for Cloth Digitization Applications
-This is the official implementation of **TiPGAN (CAD 2025)**. You can watch our demo video by clicking below:
+This is the official implementation of [**TiPGAN (CAD 2025)**](https://www.sciencedirect.com/science/article/pii/S0010448525000284?via%3Dihub). You can watch our demo video by clicking the below teaser image:
 [![TiPGAN Demo](https://github.com/user-attachments/assets/66a173c9-a8ad-4cf6-8762-b744e186eded)](https://youtu.be/Tyk7mGeElzg)
 If you find our repository helpful, please cite using this [bib](#Citation).
 
@@ -20,17 +20,21 @@ pip install -r requirements.txt
 ```
 
 # Train
-Before training your texture, you should download the VGG checkpoints from our Hugging Face repository. Please specify the image path and run the following command:
+Before training your texture, you should download the VGG checkpoints from our [Hugging Face repository](https://huggingface.co/taited/TiPGAN/). You can do this by running the following command:
+```bash
+huggingface-cli download taited/TiPGAN --local-dir ckpt
+```
+Next, specify the image path and start training by running:
 ```bash
 python train_tipgan.py --img_path media/nature_0005.jpg
 ```
 
 # Inference
-You can generate the seamless texture and its tiled version by running the following command:
+You can generate the seamless texture and its tiled result by running the following command:
 ```bash
 python inference.py --img_path media/nature_0005.jpg --ckpt_path ckpt/nature_0005.pth
 ```
-We have uploaded some of the checkpoints for the synthesized seamless textures to Hugging Face. The table below shows the generated seamless textures.
+We have uploaded some of the checkpoints for the synthesized seamless textures to [Hugging Face](https://huggingface.co/taited/TiPGAN/). The table below shows the generated seamless textures.
 
 |              | <center>banded_0109</center> | <center>banded_0141</center> | <center>banded_0145</center> | <center>chequered_0199</center> | <center>dotted_0190</center> |
 |:------------:|:----------------------------:|:----------------------------:|:----------------------------:|:------------------------------:|:----------------------------:|

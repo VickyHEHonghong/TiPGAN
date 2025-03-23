@@ -27,7 +27,7 @@ def parse_args():
     # Adding arguments
     parser.add_argument('--img_path',
                         type=str,
-                        default='media/nature_0001.jpg',
+                        default='media/nature_0005.jpg',
                         help='Path to the input image')
     parser.add_argument('--save_base',
                         type=str,

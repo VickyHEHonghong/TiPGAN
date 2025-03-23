@@ -176,3 +176,8 @@ cython_debug/
 # custome
 .vscode
 experiments
+ckpt
+*.pth
+*.jpg
+*.png
+
